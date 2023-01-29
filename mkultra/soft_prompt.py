@@ -2,9 +2,11 @@ import json
 import uuid
 import datetime
 import torch
-from typing import Dict, Any, Union
+from typing import Dict, Any
+import numpy as np
 import pickle
 import base64
+import zipfile
 
 class SoftPrompt():
     """
@@ -200,6 +202,25 @@ class SoftPrompt():
         j_dict['metadata'] = self._metadata
         j_dict['tensor'] = base64.b64encode(pickle.dumps(self._tensor,protocol=4)).decode('ascii')
         return json.dumps(j_dict)
+
+    def to_kobold(
+        self, output_file: str, name: str, author: str, supported: str, description: str
+    ):
+        """Serializes the SoftPrompt to into the KoboldAI format.
+        """
+        meta = {
+            "name": name,
+            "description": description,
+        }
+        if author:
+            meta["author"] = author
+        meta["supported"] = list(map(lambda m: m.strip(), supported.split(",")))
+
+        with zipfile.ZipFile(output_file, "w", compression=zipfile.ZIP_LZMA) as z:
+            with z.open("tensor.npy", "w") as f:
+                np.save(f, self._tensor.cpu().detach().numpy(), allow_pickle=False)
+            with z.open("meta.json", "w") as f:
+                f.write(json.dumps(meta, indent=2).encode("utf-8"))
 
     @staticmethod
     def from_input_id(input_id: int):
